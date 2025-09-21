@@ -1,0 +1,11 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "iptv-utils.fullname" . }}
+  labels:
+    {{- include "iptv-utils.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.iptvUtils.cron }}
+  jobTemplate:
+    spec:
+      {{- include "iptv-utils.jobspec" . | nindent 6 }}

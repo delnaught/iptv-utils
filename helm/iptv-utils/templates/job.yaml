@@ -1,0 +1,10 @@
+{{- if .Values.iptvUtils.enableJob -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "iptv-utils.fullname" . }}
+  labels:
+    {{- include "iptv-utils.labels" . | nindent 4 }}
+spec:
+  {{- include "iptv-utils.jobspec" . | nindent 2 }}
+{{- end }}
