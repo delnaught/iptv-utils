@@ -1,3 +1,5 @@
+import asyncio
+import copy
 import glob
 import json
 import os
@@ -9,67 +11,102 @@ import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 from ipytv import playlist
 
-load_dotenv()
 
-#options
+async def probe(stream, timeout):
 
-livetv_dir: str = os.getenv("LIVETV_DIR", "livetv");
+    # rw_timeout is in microseconds
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe",
+        "-rw_timeout",
+        str(timeout),
+        stream.url,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL
+    )
 
-playlist_upstream: str = os.getenv("PLAYLIST_UPSTREAM", "https://iptv-org.github.io/iptv/index.m3u")
-playlist_m3u: str = os.getenv("PLAYLIST_M3U", os.path.join(livetv_dir, "playlist.m3u"))
+    return await proc.wait()
 
-epg_upstream: str = os.getenv("EPG_UPSTREAM", "https://github.com/iptv-org/epg.git")
-epg_local: str = os.getenv("EPG_LOCAL", os.path.join(livetv_dir, "epg.git"))
-epg_xml: str = os.getenv("EPG_XML", os.path.join(livetv_dir, "channels.xml"))
+async def generate():
 
-shutil.rmtree(path = epg_local, ignore_errors=True)
+    #options
 
-pygit2.clone_repository(url = epg_upstream, path = epg_local, depth = 1)
+    livetv_dir: str = os.getenv("LIVETV_DIR", "livetv");
 
-xmltv_ids: set = set()
+    playlist_upstream: str = os.getenv("PLAYLIST_UPSTREAM", "https://iptv-org.github.io/iptv/index.m3u")
+    playlist_m3u: str = os.getenv("PLAYLIST_M3U", os.path.join(livetv_dir, "playlist.m3u"))
 
-channels_by_id: dict = {}
+    epg_upstream: str = os.getenv("EPG_UPSTREAM", "https://github.com/iptv-org/epg.git")
+    epg_local: str = os.getenv("EPG_LOCAL", os.path.join(livetv_dir, "epg.git"))
+    epg_xml: str = os.getenv("EPG_XML", os.path.join(livetv_dir, "channels.xml"))
 
-for channels in glob.iglob("sites/**/*channels.xml", root_dir = epg_local, recursive = True):
-    fqn: str = os.path.join(epg_local, channels)
-    data = ET.parse(fqn).getroot()
-    for channel in data.iter("channel"):
-        if ("en" == channel.attrib["lang"]):
-            xmltv_id = channel.attrib["xmltv_id"]
-            if xmltv_id:
-                xmltv_ids.add(xmltv_id)
-                channels_by_id[xmltv_id] = channel
+    probes_batch: int = int(os.getenv("PROBES_BATCH", "25")) # concurrent probe subprocesses
+    probes_timeout: int = int(os.getenv("PROBES_BATCH", "15000000")) # timeout in microseconds
 
-feeds_by_id: dict = {}
-pl_all = playlist.loadu(playlist_upstream)
+    shutil.rmtree(path = epg_local, ignore_errors=True)
 
-tvgs_regex = r"^[\S\s]+$"
-tvgs = pl_all.search(tvgs_regex, where="attributes.tvg-id", case_sensitive=False)
-pl_tvgs = playlist.M3UPlaylist()
-pl_tvgs.append_channels(tvgs)
+    pygit2.clone_repository(url = epg_upstream, path = epg_local, depth = 1)
 
-geos_regex = r"^((?!blocked).)*$"
-geos = pl_tvgs.search(geos_regex, where="name", case_sensitive=False)
+    channels_by_id: dict = {}
 
-fixed_pl = playlist.M3UPlaylist()
-for channel in geos:
-    xmltv_id = channel.attributes["tvg-id"]
-    if xmltv_id in xmltv_ids:
-        feeds_by_id[xmltv_id] = channel
-        fixed_pl.append_channel(channel)
+    for channels in glob.iglob("sites/**/*channels.xml", root_dir = epg_local, recursive = True):
+        fqn: str = os.path.join(epg_local, channels)
+        data = ET.parse(fqn).getroot()
+        for channel in data.iter("channel"):
+            if ("en" == channel.attrib["lang"]):
+                xmltv_id = channel.attrib["xmltv_id"]
+                if xmltv_id:
+                    channels_by_id[xmltv_id] = channel
+    print(f"channels: {len(channels_by_id)}")
 
-with open(playlist_m3u, 'w', encoding='utf-8') as playlist_file:
-        content = fixed_pl.to_m3u_plus_playlist()
-        playlist_file.write(content)
+    pl_all = playlist.loadu(playlist_upstream)
 
-xmltv_ids = set(feeds_by_id.keys())
-channels_by_id = {  k:v for (k,v) in channels_by_id.items() if k in xmltv_ids }
+    tvgs_regex = r"^[\S\s]+$"
+    tvgs = pl_all.search(tvgs_regex, where="attributes.tvg-id", case_sensitive=False)
+    pl_tvgs = playlist.M3UPlaylist()
+    pl_tvgs.append_channels(tvgs)
 
-print(f" feeds: {len(feeds_by_id)} and channels: {len(channels_by_id)}")
+    geos_regex = r"^((?!blocked).)*$"
+    geos = pl_tvgs.search(geos_regex, where="name", case_sensitive=False)
 
-tree = ET.Element("channels")
-for channel in channels_by_id.values():
-    tree.append(channel)
+    print(f"filtered streams: {len(geos)}")
 
-ET.indent(tree)
-ET.ElementTree(tree).write(epg_xml, encoding="UTF-8", xml_declaration=True)
+    guided_streams = [stream for stream in geos if stream.attributes["tvg-id"] in channels_by_id.keys()]
+
+    print(f"guided streams: {len(guided_streams)}")
+
+    live_streams = []
+    outstanding = copy.deepcopy(guided_streams)
+
+    while outstanding:
+
+        streams = outstanding[-probes_batch:]
+        del outstanding[-probes_batch:]
+        procs = [probe(stream, probes_timeout) for stream in streams ]
+        rtns = await asyncio.gather(*procs)
+        live_streams += [stream for stream, rtn in zip(streams, rtns) if 0 == rtn]
+        print(f"outstanding: {len(outstanding)}\tlive: {len(live_streams)}\trtns: {rtns}")
+
+        await asyncio.sleep(0) # give others a chance to run
+
+    fixed_pl = playlist.M3UPlaylist()
+    fixed_pl.append_channels(live_streams)
+
+    with open(playlist_m3u, 'w', encoding='utf-8') as playlist_file:
+            content = fixed_pl.to_m3u_plus_playlist()
+            playlist_file.write(content)
+
+    live_ids = [stream.attributes["tvg-id"] for stream in live_streams]
+
+    live_channels = [channel for tvg_id, channel in channels_by_id.items() if tvg_id in live_ids]
+
+    tree = ET.Element("channels")
+    for channel in live_channels:
+        tree.append(channel)
+
+    ET.indent(tree)
+    ET.ElementTree(tree).write(epg_xml, encoding="UTF-8", xml_declaration=True)
+
+
+if __name__ == '__main__':
+    load_dotenv()
+    asyncio.run(generate())
