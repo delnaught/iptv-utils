@@ -2,6 +2,7 @@ import asyncio
 import copy
 import glob
 import json
+import math
 import os
 import pygit2
 import shutil
@@ -12,19 +13,28 @@ from dotenv import load_dotenv
 from ipytv import playlist
 
 
-async def probe(stream, timeout):
+async def probe(stream, timeout, duration):
 
-    # rw_timeout is in microseconds
+    # try to cut down on false positives by using ffmpeg to
+    # transcode a finite duration rather than ffprobe.
     proc = await asyncio.create_subprocess_exec(
-        "ffprobe",
+        "ffmpeg",
+        "-re",
+        "-hide_banner",
         "-rw_timeout",
-        str(timeout),
+        str(math.ceil(timeout * 1.e6)),
+        "-i",
         stream.url,
+        "-f",
+        "null",
+        "-t",
+        str(duration),
+        "-",
         stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL
+        stderr=asyncio.subprocess.DEVNULL,
     )
 
-    return await proc.wait()
+    return await asyncio.wait_for(proc.wait(), timeout = (2.0 * timeout))
 
 async def generate():
 
@@ -40,7 +50,8 @@ async def generate():
     epg_xml: str = os.getenv("EPG_XML", os.path.join(livetv_dir, "channels.xml"))
 
     probes_batch: int = int(os.getenv("PROBES_BATCH", "25")) # concurrent probe subprocesses
-    probes_timeout: int = int(os.getenv("PROBES_BATCH", "15000000")) # timeout in microseconds
+    probes_timeout: float = float(os.getenv("PROBES_TIMEOUT", "15.0")) # timeout in seconds
+    probes_duration: float = float(os.getenv("PROBES_DURATION", "5.0")) # output duration in seconds
 
     shutil.rmtree(path = epg_local, ignore_errors=True)
 
@@ -81,8 +92,8 @@ async def generate():
 
         streams = outstanding[-probes_batch:]
         del outstanding[-probes_batch:]
-        procs = [probe(stream, probes_timeout) for stream in streams ]
-        rtns = await asyncio.gather(*procs)
+        procs = [probe(stream, probes_timeout, probes_duration) for stream in streams ]
+        rtns = await asyncio.gather(*procs, return_exceptions=True)
         live_streams += [stream for stream, rtn in zip(streams, rtns) if 0 == rtn]
         print(f"outstanding: {len(outstanding)}\tlive: {len(live_streams)}\trtns: {rtns}")
 
