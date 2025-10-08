@@ -22,27 +22,33 @@
       {{- end }}
       restartPolicy: Never
       initContainers:
-        - name: generate
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["python", "generate.py"]
+        - name: git
+          image: "{{ .Values.gitImage.repository }}:{{ .Values.gitImage.tag }}"
+          imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
+          command: ["sh", "-c", "rm -rf {{ .Values.env.epg_local }} && git clone --depth 1 {{ .Values.env.epg_upstream }} {{ .Values.env.epg_local }}"]
           env:
-            - name: LIVETV_DIR
-              value: "/livetv"
-            - name: EPG_XML
-              value: "/livetv/channels.xml"
+            {{- include "iptv-utils.env" . | nindent 12 }}
+          {{- with .Values.volumeMounts }}
           volumeMounts:
-            - name: livetv
-              mountPath: "/livetv"
-      containers:
-        - name: fetch
-          image: "{{ .Values.epgImage.repository }}:{{ .Values.epgImage.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["npm", "run", "grab", "--", "--channels=/livetv/channels.xml", "--output=/livetv/guide.xml"]
-          {{- with .Values.env }}
-          env:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        - name: util
+          image: "{{ .Values.utilImage.repository }}:{{ .Values.utilImage.tag }}"
+          imagePullPolicy: {{ .Values.utilImage.pullPolicy }}
+          command: ["python3", "generate.py"]
+          env:
+            {{- include "iptv-utils.env" . | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: epg
+          image: "{{ .Values.epgImage.repository }}:{{ .Values.epgImage.tag }}"
+          imagePullPolicy: {{ .Values.epgImage.pullPolicy }}
+          command: ["sh", "-c", "cd {{ .Values.env.epg_local }} && npm install && npm run grab -- --channels={{- .Values.env.epg_xml}} --output={{- .Values.env.guide_xml}}"]
+          env:
+            {{- include "iptv-utils.env" . | nindent 12 }}
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

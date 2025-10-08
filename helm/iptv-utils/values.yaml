@@ -5,26 +5,32 @@
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
 replicaCount: 1
 
-# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
-image:
-  repository: iptv-utils
-  # This sets the pull policy for images.
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+gitImage:
+  repository: alpine/git
+  pullPolicy: Always
+  tag: latest
+
+utilImage:
+  repository: ghcr.io/delnaught/iptv-utils
+  pullPolicy: Always
+  tag: main
 
 epgImage:
-  repository: iptv-org-epg
-  pullPolicy: IfNotPresent
-  tag: "latest"
+  repository: node
+  pullPolicy: Always
+  tag: 22-alpine
 
 iptvUtils:
   cron: "13 0 * * *"
   enableJob: true
 
 env:
-  - name: LIVETV_DIR
-    value: "/livetv"
+  epg_upstream: |-
+    https://github.com/iptv-org/epg.git
+  epg_local: /livetv/epg.git
+  epg_xml: /livetv/channels.xml
+  guide_xml: /livetv/guide.xml
+  playlist_m3u: /livetv/playlist.m3u
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
