@@ -4,8 +4,6 @@ import glob
 import json
 import math
 import os
-import pygit2
-import shutil
 
 import xml.etree.ElementTree as ET
 
@@ -45,17 +43,12 @@ async def generate():
     playlist_upstream: str = os.getenv("PLAYLIST_UPSTREAM", "https://iptv-org.github.io/iptv/index.m3u")
     playlist_m3u: str = os.getenv("PLAYLIST_M3U", os.path.join(livetv_dir, "playlist.m3u"))
 
-    epg_upstream: str = os.getenv("EPG_UPSTREAM", "https://github.com/iptv-org/epg.git")
     epg_local: str = os.getenv("EPG_LOCAL", os.path.join(livetv_dir, "epg.git"))
     epg_xml: str = os.getenv("EPG_XML", os.path.join(livetv_dir, "channels.xml"))
 
     probes_batch: int = int(os.getenv("PROBES_BATCH", "25")) # concurrent probe subprocesses
     probes_timeout: float = float(os.getenv("PROBES_TIMEOUT", "15.0")) # timeout in seconds
     probes_duration: float = float(os.getenv("PROBES_DURATION", "5.0")) # output duration in seconds
-
-    shutil.rmtree(path = epg_local, ignore_errors=True)
-
-    pygit2.clone_repository(url = epg_upstream, path = epg_local, depth = 1)
 
     channels_by_id: dict = {}
 

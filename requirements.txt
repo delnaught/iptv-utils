@@ -1,3 +1,2 @@
 dotenv
 m3u-ipytv
-pygit2
