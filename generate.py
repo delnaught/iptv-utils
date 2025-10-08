@@ -60,7 +60,7 @@ async def generate():
                 xmltv_id = channel.attrib["xmltv_id"]
                 if xmltv_id:
                     channels_by_id[xmltv_id] = channel
-    print(f"channels: {len(channels_by_id)}")
+    print(f"channels: {len(channels_by_id)}", flush=True)
 
     pl_all = playlist.loadu(playlist_upstream)
 
@@ -72,11 +72,11 @@ async def generate():
     geos_regex = r"^((?!blocked).)*$"
     geos = pl_tvgs.search(geos_regex, where="name", case_sensitive=False)
 
-    print(f"filtered streams: {len(geos)}")
+    print(f"filtered streams: {len(geos)}", flush=True)
 
     guided_streams = [stream for stream in geos if stream.attributes["tvg-id"] in channels_by_id.keys()]
 
-    print(f"guided streams: {len(guided_streams)}")
+    print(f"guided streams: {len(guided_streams)}", flush=True)
 
     live_streams = []
     outstanding = copy.deepcopy(guided_streams)
@@ -88,7 +88,7 @@ async def generate():
         procs = [probe(stream, probes_timeout, probes_duration) for stream in streams ]
         rtns = await asyncio.gather(*procs, return_exceptions=True)
         live_streams += [stream for stream, rtn in zip(streams, rtns) if 0 == rtn]
-        print(f"outstanding: {len(outstanding)}\tlive: {len(live_streams)}\trtns: {rtns}")
+        print(f"outstanding: {len(outstanding)}\tlive: {len(live_streams)}\trtns: {rtns}", flush=True)
 
         await asyncio.sleep(0) # give others a chance to run
 
