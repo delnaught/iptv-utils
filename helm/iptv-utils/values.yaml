@@ -21,7 +21,7 @@ epgImage:
   tag: 22-alpine
 
 iptvUtils:
-  cron: "13 0 * * *"
+  cron: "13 6 * * *"
   enableJob: true
 
 env:
