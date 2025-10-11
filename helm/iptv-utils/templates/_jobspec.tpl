@@ -6,7 +6,6 @@
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "iptv-utils.labels" . | nindent 8 }}
         {{- with .Values.jobLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
