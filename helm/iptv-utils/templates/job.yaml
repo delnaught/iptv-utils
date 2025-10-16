@@ -6,5 +6,6 @@ metadata:
   labels:
     {{- include "iptv-utils.labels" . | nindent 4 }}
 spec:
+  ttlSecondsAfterFinished: 43200
   {{- include "iptv-utils.jobspec" . | nindent 2 }}
 {{- end }}

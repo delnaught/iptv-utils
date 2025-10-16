@@ -8,4 +8,5 @@ spec:
   schedule: {{ .Values.iptvUtils.cron }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 43200
       {{- include "iptv-utils.jobspec" . | nindent 6 }}
