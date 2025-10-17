@@ -99,7 +99,7 @@ async def generate():
             content = fixed_pl.to_m3u_plus_playlist()
             playlist_file.write(content)
 
-    live_ids = [stream.attributes["tvg-id"] for stream in live_streams]
+    live_ids = [stream.attributes["tvg-id"].strip().casefold() for stream in live_streams]
 
     live_channels = [channel for tvg_id, channel in channels_by_id.items() if tvg_id in live_ids]
 
