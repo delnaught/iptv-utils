@@ -59,7 +59,7 @@ async def generate():
             if ("en" == channel.attrib["lang"]):
                 xmltv_id = channel.attrib["xmltv_id"]
                 if xmltv_id:
-                    channels_by_id[xmltv_id] = channel
+                    channels_by_id[xmltv_id.strip().casefold()] = channel
     print(f"channels: {len(channels_by_id)}", flush=True)
 
     pl_all = playlist.loadu(playlist_upstream)
@@ -74,7 +74,7 @@ async def generate():
 
     print(f"filtered streams: {len(geos)}", flush=True)
 
-    guided_streams = [stream for stream in geos if stream.attributes["tvg-id"] in channels_by_id.keys()]
+    guided_streams = [stream for stream in geos if stream.attributes["tvg-id"].strip().casefold() in channels_by_id.keys()]
 
     print(f"guided streams: {len(guided_streams)}", flush=True)
 
