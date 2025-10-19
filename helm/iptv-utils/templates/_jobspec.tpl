@@ -24,7 +24,7 @@
         - name: git
           image: "{{ .Values.gitImage.repository }}:{{ .Values.gitImage.tag }}"
           imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
-          command: ["sh", "-c", "rm -rf {{ .Values.env.epg_local }} && git clone --depth 1 {{ .Values.env.epg_upstream }} {{ .Values.env.epg_local }}"]
+          command: ["sh", "-c", "rm -rf {{ .Values.env.epg_local }} && git clone --depth 1 --branch {{ .Values.env.epg_branch }} {{ .Values.env.epg_upstream }} {{ .Values.env.epg_local }}"]
           env:
             {{- include "iptv-utils.env" . | nindent 12 }}
           {{- with .Values.volumeMounts }}

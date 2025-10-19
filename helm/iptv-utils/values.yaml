@@ -27,6 +27,7 @@ iptvUtils:
 env:
   epg_upstream: |-
     https://github.com/iptv-org/epg.git
+  epg_branch: master
   epg_local: /livetv/epg.git
   epg_xml: /livetv/channels.xml
   guide_xml: /livetv/guide.xml
