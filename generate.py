@@ -56,25 +56,19 @@ async def generate():
         fqn: str = os.path.join(epg_local, channels)
         data = ET.parse(fqn).getroot()
         for channel in data.iter("channel"):
-            if ("en" == channel.attrib["lang"]):
-                xmltv_id = channel.attrib["xmltv_id"]
-                if xmltv_id:
-                    channels_by_id[xmltv_id.strip().casefold()] = channel
+            xmltv_id = channel.attrib["xmltv_id"]
+            if xmltv_id:
+                channels_by_id[xmltv_id.strip().casefold()] = channel
     print(f"channels: {len(channels_by_id)}", flush=True)
 
     pl_all = playlist.loadu(playlist_upstream)
 
     tvgs_regex = r"^[\S\s]+$"
     tvgs = pl_all.search(tvgs_regex, where="attributes.tvg-id", case_sensitive=False)
-    pl_tvgs = playlist.M3UPlaylist()
-    pl_tvgs.append_channels(tvgs)
 
-    geos_regex = r"^((?!blocked).)*$"
-    geos = pl_tvgs.search(geos_regex, where="name", case_sensitive=False)
+    print(f"filtered streams: {len(tvgs)}", flush=True)
 
-    print(f"filtered streams: {len(geos)}", flush=True)
-
-    guided_streams = [stream for stream in geos if stream.attributes["tvg-id"].strip().casefold() in channels_by_id.keys()]
+    guided_streams = [stream for stream in tvgs if stream.attributes["tvg-id"].strip().casefold() in channels_by_id.keys()]
 
     print(f"guided streams: {len(guided_streams)}", flush=True)
 
